@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3000
 app.use(cors({ origin: '*' }))
 app.use(express.json())
 
-const ACCESS_TOKEN = 'APP_USR-8160430385048854-041513-72cd79fb6cb17c0d71d4196103e0c379-81656546'
+const ACCESS_TOKEN = process.env.MERCADO_PAGO_TOKEN
 
 app.post('/pix', async (req, res) => {
   try {
