@@ -1,13 +1,15 @@
 {
   "name": "servidor-pix-gelafacil",
   "version": "1.0.0",
+  "description": "Servidor para gerar QR Code PIX usando Mercado Pago",
+  "type": "module",
   "main": "servidor_pix.js",
   "scripts": {
     "start": "node servidor_pix.js"
   },
   "dependencies": {
-    "axios": "^1.6.0",
     "cors": "^2.8.5",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
   }
 }

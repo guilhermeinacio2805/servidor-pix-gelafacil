@@ -1,45 +1,60 @@
+import express from 'express'
+import cors from 'cors'
+import fetch from 'node-fetch'
 
-const express = require('express');
-const axios = require('axios');
-const cors = require('cors');
+const app = express()
+const PORT = process.env.PORT || 3000
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+app.use(cors({ origin: '*' }))
+app.use(express.json())
 
-const ACCESS_TOKEN = 'APP_USR-8160430385048854-041513-72cd79fb6cb17c0d71d4196103e0c379-81656546';
+const ACCESS_TOKEN = 'APP_USR-8160430385048854-041513-72cd79fb6cb17c0d71d4196103e0c379-81656546'
 
-app.post('/criar-pagamento', async (req, res) => {
-    try {
-        const { valor, nome } = req.body;
+app.post('/pix', async (req, res) => {
+  try {
+    const { nome, cpf, valor, descricao } = req.body
 
-        const response = await axios.post('https://api.mercadopago.com/v1/payments', {
-            transaction_amount: parseFloat(valor),
-            description: `Pedido hamburgueria - ${nome}`,
-            payment_method_id: 'pix',
-            payer: {
-                email: 'comprador@mail.com',
-                first_name: nome
-            }
-        }, {
-            headers: {
-                Authorization: `Bearer ${ACCESS_TOKEN}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        const pix = response.data.point_of_interaction.transaction_data;
-        res.json({
-            qr_code_base64: pix.qr_code_base64,
-            qr_code: pix.qr_code,
-            ticket_url: response.data.transaction_details.external_resource_url
-        });
-    } catch (error) {
-        console.error(error.response?.data || error.message);
-        res.status(500).json({ error: 'Erro ao criar pagamento' });
+    const body = {
+      transaction_amount: Number(valor),
+      description: descricao || 'Pagamento via QR Code PIX',
+      payment_method_id: 'pix',
+      payer: {
+        email: 'comprador@email.com',
+        first_name: nome || 'Cliente',
+        identification: {
+          type: 'CPF',
+          number: cpf || '12345678909'
+        }
+      }
     }
-});
 
-app.listen(3000, () => {
-    console.log('Servidor rodando em http://localhost:3000');
-});
+    const response = await fetch('https://api.mercadopago.com/v1/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ACCESS_TOKEN}`
+      },
+      body: JSON.stringify(body)
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      return res.status(500).json({ erro: 'Falha ao gerar pagamento', detalhe: data })
+    }
+
+    res.json({
+      qr_code_base64: data.point_of_interaction.transaction_data.qr_code_base64,
+      qr_code: data.point_of_interaction.transaction_data.qr_code,
+      id: data.id
+    })
+
+  } catch (err) {
+    console.error('Erro geral:', err)
+    res.status(500).json({ erro: 'Erro interno no servidor' })
+  }
+})
+
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`)
+})
