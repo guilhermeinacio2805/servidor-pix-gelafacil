@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Magnatas Hamburgueria</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f8f8f8;
+        }
+        
+        .hero {
+            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://images.unsplash.com/photo-1565299507177-b0ac66763828?ixlib=rb-4.0.3');
+            background-size: cover;
+            background-position: center;
+        }
+        
+        .cep-modal {
+            animation: slideIn 0.5s forwards;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .item-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .family-combo {
+            border: 3px solid #f59e0b;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .family-combo::before {
+            content: "RECOMENDADO";
+            position: absolute;
+            top: 10px;
+            right: -30px;
+            background-color: #f59e0b;
+            color: white;
+            padding: 3px 30px;
+            transform: rotate(45deg);
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .quantity-selector {
+            display: flex;
+            align-items: center;
+        }
+        
+        .quantity-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .cart-item {
+            transition: all 0.3s ease;
+        }
+        
+        .cart-item-remove {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .cart-item:hover .cart-item-remove {
+            opacity: 1;
+        }
+
+        .menu-img {
+            height: 200px;
+            width: 100%;
+            object-fit: cover;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .pix-code {
+            background: #f8f8f8;
+            border: 1px dashed #32BCAD;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 15px 0;
+        }
+        
+        .pix-code img {
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto;
+        }
+        
+        .copy-btn {
+            background-color: #32BCAD;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .copy-btn:hover {
+            background-color: #2aa89b;
+        }
+        
+        .logo {
+            height: 80px;
+            margin-bottom: 20px;
+        }
+        
+        .free-delivery-badge {
+            background-color: #10B981;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+
+        .cep-loading {
+            display: none;
+        }
+
+        #deliveryMessage {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            animation: fadeInOut 5s forwards;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; top: 10px; }
+            10% { opacity: 1; top: 20px; }
+            90% { opacity: 1; top: 20px; }
+            100% { opacity: 0; top: 10px; }
+        }
+    </style>
+</head>
+<body>
+<script>
+function gerarPixQRCode(valorTotal) {
+    const chavePix = 'guilhermeinacio@gmail.com';
+    const merchantName = 'GUILHERME INACIO';
+    const cidade = 'SAO PAULO';
+
+    function montarPayloadPix(chave, valor, nome, cidade) {
+        const format = (id, value) => `${id}${(value.length).toString().padStart(2, '0')}${value}`;
+        const payload =
+            '000201' +
+            format('26', format('00', 'br.gov.bcb.pix') + format('01', chave)) +
+            format('52', '0000') +
+            format('53', '986') +
+            format('54', valor.toFixed(2)) +
+            format('58', 'BR') +
+            format('59', nome.substring(0, 25)) +
+            format('60', cidade.substring(0, 15)) +
+            '62070503***';
+
+        const crc16 = (str) => {
+            let crc = 0xFFFF;
+            for (let c of str) {
+                crc ^= c.charCodeAt(0) << 8;
+                for (let i = 0; i < 8; i++) {
+                    if ((crc & 0x8000) !== 0) {
+                        crc = (crc << 1) ^ 0x1021;
+                    } else {
+                        crc <<= 1;
+                    }
+                    crc &= 0xFFFF;
+                }
+            }
+            return crc.toString(16).toUpperCase().padStart(4, '0');
+        }
+
+        const payloadSemCRC = payload + '6304';
+        const crc = crc16(payloadSemCRC);
+        return payloadSemCRC + crc;
+    }
+
+    if (isNaN(valorTotal) || valorTotal <= 0) {
+        console.error('Valor inválido para gerar QR Code PIX:', valorTotal);
+        return;
+    }
+
+    const payloadPix = montarPayloadPix(chavePix, valorTotal, merchantName, cidade);
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payloadPix)}`;
+
+    const qrImage = document.getElementById('pixQRCode');
+    qrImage.src = qrCodeUrl;
+    qrImage.style.display = 'block';
+
+    console.log('QR Code gerado:', qrCodeUrl);
+}
+        </script>
+<!-- CEP Modal -->
+<div class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50" id="cepModal">
+<div class="cep-modal bg-white rounded-lg p-6 w-full max-w-md">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-xl font-bold">Antes de começar...</h3>
+<button class="text-gray-500 hover:text-gray-700" id="closeCepModal">
+<i class="fas fa-times"></i>
+</button>
+</div>
+<p class="mb-4">Informe seu CEP para verificarmos se entregamos em sua região</p>
+<div class="flex">
+<input class="flex-1 border border-gray-300 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500" id="cepInput" maxlength="8" placeholder="Digite seu CEP (apenas números)" type="text"/>
+<button class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold px-4 py-2 rounded-r-lg transition duration-300" id="checkCep">
+                    Verificar
+                </button>
+</div>
+<div class="cep-loading text-center mt-2" id="cepLoading">
+<i class="fas fa-spinner fa-spin mr-2"></i> Verificando CEP...
+            </div>
+<div class="text-red-500 mt-2 hidden" id="cepError">CEP inválido ou não atendido</div>
+<div class="text-green-500 mt-2 hidden" id="cepSuccess"></div>
+</div>
+</div>
+<!-- Delivery Available Message -->
+<div class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-40 flex items-center" id="deliveryMessage">
+<i class="fas fa-check-circle mr-2"></i>
+<span id="deliveryMessageText">Entrega confirmada para sua região! Aproveite a entrega grátis no primeiro pedido.</span>
+</div>
+<!-- Checkout Modal -->
+<div class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50" id="checkoutModal">
+<div class="bg-white rounded-lg p-6 w-full max-w-md">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-xl font-bold">Finalizar Pedido</h3>
+<button class="text-gray-500 hover:text-gray-700" id="closeCheckoutModal">
+<i class="fas fa-times"></i>
+</button>
+</div>
+<div id="customerInfoForm">
+<div class="mb-4">
+<label class="block text-gray-700 mb-2" for="name">Nome*</label>
+<input class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500" id="name" required="" type="text"/>
+</div>
+<div class="mb-4">
+<label class="block text-gray-700 mb-2" for="phone">Telefone*</label>
+<input class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500" id="phone" required="" type="tel"/>
+</div>
+<div class="mb-4">
+<label class="block text-gray-700 mb-2" for="address">Endereço Completo*</label>
+<input class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500" id="address" required="" type="text"/>
+</div>
+<div class="mb-4">
+<label class="block text-gray-700 mb-2" for="paymentMethod">Forma de Pagamento*</label>
+<select class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500" id="paymentMethod">
+<option value="pix">PIX</option>
+<option value="cash">Dinheiro</option>
+<option value="card">Cartão na Entrega</option>
+</select>
+</div>
+<button class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 rounded-lg transition duration-300" id="proceedToPayment">
+                    Continuar para Pagamento
+                </button>
+</div>
+<div class="hidden" id="pixPayment">
+<div class="text-center">
+<h4 class="text-lg font-bold mb-4">Pagamento via PIX</h4>
+<p class="mb-4">Escaneie o QR Code abaixo para realizar o pagamento:</p>
+<div style="display: flex; justify-content: center;">
+<img alt="QR Code PIX Mercado Pago" id="qrCodeMP" src="" style="max-width: 300px; display: none; margin: auto;"/>
+</div>
+<p class="text-sm text-gray-700 mt-4 font-mono" id="pixCode"></p>
+<p class="text-sm text-gray-600 mt-2">Após o pagamento, clique no botão abaixo.</p>
+<div class="mt-6 flex justify-between">
+<button class="text-gray-600 hover:text-gray-800" id="backToInfo">
+<i class="fas fa-arrow-left mr-2"></i>Voltar
+                </button>
+<button class="bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-2 rounded-lg transition duration-300" id="confirmPayment">
+                    Já Paguei
+                </button>
+</div>
+</div>
+</div>
+<div class="hidden" id="otherPayment">
+<h4 class="text-lg font-bold mb-4">Pagamento na Entrega</h4>
+<p class="mb-4" id="paymentInstructions">Você pagará quando receber seu pedido.</p>
+<div class="mt-6 flex justify-between">
+<button class="text-gray-600 hover:text-gray-800" id="backToInfoOther">
+<i class="fas fa-arrow-left mr-2"></i>Voltar
+                    </button>
+<button class="bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-2 rounded-lg transition duration-300" id="confirmOrder">
+                        Confirmar Pedido
+                    </button>
+</div>
+</div>
+<div class="hidden text-center py-8" id="orderConfirmation">
+<i class="fas fa-check-circle text-green-500 text-5xl mb-4"></i>
+<h4 class="text-xl font-bold mb-2">Pedido Confirmado!</h4>
+<p class="mb-4">Seu pedido foi recebido e está sendo preparado.</p>
+<p class="text-sm text-gray-600">Você receberá uma confirmação por WhatsApp em breve.</p>
+<button class="mt-6 bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-6 py-2 rounded-lg transition duration-300" id="closeOrderModal">
+                    Fechar
+                </button>
+</div>
+</div>
+</div>
+<!-- Header -->
+<header class="hero text-white py-16">
+<div class="container mx-auto px-4 text-center">
+<img alt="Magnatas Hamburgueria" class="logo mx-auto" src="magnatas.png"/>
+<h1 class="text-4xl md:text-5xl font-bold mb-4">MAGNATAS HAMBURGUERIA</h1>
+<p class="text-xl md:text-2xl mb-8">Os melhores hambúrgueres artesanais da cidade</p>
+<div class="flex justify-center space-x-4">
+<button class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-6 py-3 rounded-lg transition duration-300">
+<i class="fas fa-phone-alt mr-2"></i> FAZER PEDIDO
+                </button>
+<button class="bg-transparent hover:bg-white hover:text-black border-2 border-white text-white font-bold px-6 py-3 rounded-lg transition duration-300">
+<i class="fas fa-map-marker-alt mr-2"></i> NOSSA LOCALIZAÇÃO
+                </button>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="container mx-auto px-4 py-8">
+<!-- Cart Button -->
+<div class="fixed bottom-6 right-6 z-30">
+<button class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-4 py-3 rounded-full shadow-lg flex items-center transition duration-300" id="cartButton">
+<i class="fas fa-shopping-cart mr-2"></i>
+<span id="cartCount">0</span>
+<span class="ml-1">itens</span>
+</button>
+</div>
+<!-- Cart Sidebar -->
+<div class="fixed top-0 right-0 h-full w-full md:w-96 bg-white shadow-lg transform translate-x-full transition-transform duration-300 z-40 overflow-y-auto" id="cartSidebar">
+<div class="p-4 border-b border-gray-200 flex justify-between items-center">
+<h3 class="text-xl font-bold">Seu Pedido</h3>
+<button class="text-gray-500 hover:text-gray-700" id="closeCart">
+<i class="fas fa-times"></i>
+</button>
+</div>
+<div class="p-4" id="cartItems">
+<p class="text-gray-500 text-center py-8">Seu carrinho está vazio</p>
+</div>
+<div class="p-4 border-t border-gray-200">
+<div class="flex justify-between mb-2">
+<span>Subtotal:</span>
+<span id="cartSubtotal">R$ 0,00</span>
+</div>
+<div class="flex justify-between mb-2">
+<span>Taxa de Entrega:</span>
+<span id="deliveryFee">R$ 0,00 <span class="free-delivery-badge">GRÁTIS</span></span>
+</div>
+<div class="flex justify-between mb-4 font-bold text-lg">
+<span>Total:</span>
+<span id="cartTotal">R$ 0,00</span>
+</div>
+<button class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 rounded-lg transition duration-300" id="checkoutButton">
+                    Finalizar Pedido
+                </button>
+</div>
+</div>
+<!-- Menu Sections -->
+<div class="mb-12">
+<h2 class="text-3xl font-bold mb-6 text-center">🍔 CARDÁPIO HAMBURGUERIA MAGNATAS 🍔</h2>
+<!-- Family Combo (Highlighted) -->
+<div class="mb-12">
+<h3 class="text-2xl font-bold mb-4 flex items-center">
+<i class="fas fa-star text-yellow-500 mr-2"></i>
+                    👨‍👩‍👧‍👦 Combo Família
+                </h3>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="family-combo bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Combo Família" class="menu-img" src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Combo Família</h4>
+<p class="text-gray-600 mb-4">4 Smash Burgers, 1 Batata extra grande, 1 Coca-Cola 2L</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 49,90</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="4 Smash Burgers, 1 Batata extra grande, 1 Coca-Cola 2L" data-name="Combo Família" data-price="49.90">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Individual Combos -->
+<div class="mb-12">
+<h3 class="text-2xl font-bold mb-4">Combos Individuais</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Combo Simples -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Combo Simples" class="menu-img" src="https://images.unsplash.com/photo-1561758033-d89a9ad46330?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Combo Simples</h4>
+<p class="text-gray-600 mb-4">1 Smash Burger (hambúrguer 80g, queijo, maionese da casa, pão brioche), Batata pequena, Refrigerante lata</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 19,90</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="1 Smash Burger, Batata pequena, Refrigerante lata" data-name="Combo Simples" data-price="19.90">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Combo Duplo -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Combo Duplo" class="menu-img" src="https://images.unsplash.com/photo-1565299507177-b0ac66763828?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Combo Duplo</h4>
+<p class="text-gray-600 mb-4">2 Smash Burgers, Batata pequena, Refrigerante 350ml</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 27,90</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="2 Smash Burgers, Batata pequena, Refrigerante 350ml" data-name="Combo Duplo" data-price="27.90">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Combo Cheddar Bacon -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Combo Cheddar Bacon" class="menu-img" src="https://images.unsplash.com/photo-1571091718767-18b5b1457add?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Combo Cheddar Bacon</h4>
+<p class="text-gray-600 mb-4">1 Burger com cheddar cremoso + bacon crocante, Batata média, Chá gelado ou suco natural</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 24,90</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="1 Burger com cheddar + bacon, Batata média, Chá gelado ou suco" data-name="Combo Cheddar Bacon" data-price="24.90">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Combo Veggie -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Combo Veggie" class="menu-img" src="https://images.unsplash.com/photo-1559847844-5315695dadae?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Combo Veggie</h4>
+<p class="text-gray-600 mb-4">Hambúrguer de grão-de-bico ou soja, Batata rústica, Refrigerante ou água</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 22,90</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Hambúrguer veggie, Batata rústica, Refrigerante ou água" data-name="Combo Veggie" data-price="22.90">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Combos for 2 People -->
+<div class="mb-12">
+<h3 class="text-2xl font-bold mb-4">Combos para 2 Pessoas</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Combo Casal -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Combo Casal" class="menu-img" src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Combo Casal</h4>
+<p class="text-gray-600 mb-4">2 Smash Burgers, 1 Batata grande, 2 refrigerantes 350ml</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 39,90</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="2 Smash Burgers, 1 Batata grande, 2 refrigerantes 350ml" data-name="Combo Casal" data-price="39.90">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Combo Duplo Top -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Combo Duplo Top" class="menu-img" src="https://images.unsplash.com/photo-1565299507177-b0ac66763828?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Combo Duplo Top</h4>
+<p class="text-gray-600 mb-4">2 Burgers especiais (cheddar bacon, costela ou frango crocante), 2 Batatas médias, 2 sucos naturais ou refrigerantes</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 47,90</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="2 Burgers especiais, 2 Batatas médias, 2 sucos ou refrigerantes" data-name="Combo Duplo Top" data-price="47.90">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Extras -->
+<div class="mb-12">
+<h3 class="text-2xl font-bold mb-4">🌯 Extras e Acompanhamentos</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Batata pequena -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Batata pequena" class="menu-img" src="https://images.unsplash.com/photo-1585109649137-30fd9a3b49cd?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Batata pequena</h4>
+<p class="text-gray-600 mb-4">Porção individual</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 6,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Porção individual" data-name="Batata pequena" data-price="6.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Batata grande -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Batata grande" class="menu-img" src="https://images.unsplash.com/photo-1585109649137-30fd9a3b49cd?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Batata grande</h4>
+<p class="text-gray-600 mb-4">Porção para compartilhar</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 10,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Porção para compartilhar" data-name="Batata grande" data-price="10.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Onion rings -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Onion rings" class="menu-img" src="https://images.unsplash.com/photo-1632818924548-be2f6a229b9e?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Onion rings</h4>
+<p class="text-gray-600 mb-4">Anéis de cebola empanados</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 9,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Anéis de cebola empanados" data-name="Onion rings" data-price="9.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Nuggets -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Nuggets 6un" class="menu-img" src="https://images.unsplash.com/photo-1632818924548-be2f6a229b9e?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Nuggets 6un</h4>
+<p class="text-gray-600 mb-4">Nuggets de frango crocantes</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 7,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Nuggets de frango crocantes" data-name="Nuggets 6un" data-price="7.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Maionese -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Maionese temperada" class="menu-img" src="https://images.unsplash.com/photo-1585109649137-30fd9a3b49cd?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Maionese temperada</h4>
+<p class="text-gray-600 mb-4">Maionese da casa especial</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 2,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Maionese da casa especial" data-name="Maionese temperada" data-price="2.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Burgers -->
+<div class="mb-12">
+<h3 class="text-2xl font-bold mb-4">🍔 Tipos de Burgers (para montar combos)</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Smash Burger -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Smash Burger" class="menu-img" src="https://images.unsplash.com/photo-1561758033-d89a9ad46330?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Smash Burger</h4>
+<p class="text-gray-600 mb-4">Hambúrguer 80g, queijo, maionese da casa, pão brioche</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 12,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Hambúrguer 80g, queijo, maionese da casa, pão brioche" data-name="Smash Burger" data-price="12.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Cheddar Bacon -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Cheddar Bacon" class="menu-img" src="https://images.unsplash.com/photo-1571091718767-18b5b1457add?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Cheddar Bacon</h4>
+<p class="text-gray-600 mb-4">Hambúrguer com cheddar cremoso + bacon crocante</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 15,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Hambúrguer com cheddar cremoso + bacon crocante" data-name="Cheddar Bacon" data-price="15.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Frango Crocante -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Frango Crocante" class="menu-img" src="https://images.unsplash.com/photo-1559847844-5315695dadae?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Frango Crocante</h4>
+<p class="text-gray-600 mb-4">Hambúrguer de frango empanado crocante</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 14,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Hambúrguer de frango empanado crocante" data-name="Frango Crocante" data-price="14.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Costela BBQ -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Costela BBQ" class="menu-img" src="https://images.unsplash.com/photo-1565299507177-b0ac66763828?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Costela BBQ</h4>
+<p class="text-gray-600 mb-4">Hambúrguer de costela com molho barbecue</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 16,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Hambúrguer de costela com molho barbecue" data-name="Costela BBQ" data-price="16.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Vegetariano -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Vegetariano" class="menu-img" src="https://images.unsplash.com/photo-1559847844-5315695dadae?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Vegetariano</h4>
+<p class="text-gray-600 mb-4">Hambúrguer de grão-de-bico ou soja</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 13,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Hambúrguer de grão-de-bico ou soja" data-name="Vegetariano" data-price="13.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Drinks -->
+<div class="mb-12">
+<h3 class="text-2xl font-bold mb-4">🧃 Bebidas</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Refrigerante lata -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Refrigerante lata" class="menu-img" src="https://images.unsplash.com/photo-1561758033-d89a9ad46330?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Refrigerante lata</h4>
+<p class="text-gray-600 mb-4">350ml</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 5,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="350ml" data-name="Refrigerante lata" data-price="5.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Suco natural -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Suco natural" class="menu-img" src="https://images.unsplash.com/photo-1571091718767-18b5b1457add?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Suco natural</h4>
+<p class="text-gray-600 mb-4">500ml</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 6,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="500ml" data-name="Suco natural" data-price="6.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Água -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Água" class="menu-img" src="https://images.unsplash.com/photo-1559847844-5315695dadae?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Água</h4>
+<p class="text-gray-600 mb-4">500ml</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 3,00</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="500ml" data-name="Água" data-price="3.00">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+<!-- Coca-Cola 2L -->
+<div class="bg-white rounded-lg overflow-hidden shadow-md transition duration-300 item-card">
+<img alt="Coca-Cola 2L" class="menu-img" src="https://images.unsplash.com/photo-1565299507177-b0ac66763828?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80"/>
+<div class="p-4">
+<h4 class="text-xl font-bold mb-2">Coca-Cola 2L</h4>
+<p class="text-gray-600 mb-4">Garrafa 2 litros</p>
+<p class="text-lg font-bold text-yellow-600 mb-4">R$ 9,90</p>
+<div class="flex justify-between items-center">
+<div class="quantity-selector">
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 decrement">-</button>
+<span class="quantity mx-2">0</span>
+<button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 increment">+</button>
+</div>
+<button class="add-to-cart bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg transition duration-300" data-description="Garrafa 2 litros" data-name="Coca-Cola 2L" data-price="9.90">
+                                    Adicionar
+                                </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-gray-900 text-white py-8">
+<div class="container mx-auto px-4">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<div>
+<h3 class="text-xl font-bold mb-4">Magnatas Hamburgueria</h3>
+<p class="mb-4">Os melhores hambúrgueres artesanais da cidade, feitos com ingredientes de alta qualidade.</p>
+<div class="flex space-x-4">
+<a class="text-white hover:text-yellow-500" href="#"><i class="fab fa-facebook-f"></i></a>
+<a class="text-white hover:text-yellow-500" href="#"><i class="fab fa-instagram"></i></a>
+<a class="text-white hover:text-yellow-500" href="#"><i class="fab fa-whatsapp"></i></a>
+</div>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-4">Horário de Funcionamento</h3>
+<p class="mb-2">Segunda a Quinta: 18h - 23h</p>
+<p class="mb-2">Sexta e Sábado: 18h - 00h</p>
+<p>Domingo: 18h - 22h</p>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-4">Contato</h3>
+<p class="mb-2"><i class="fas fa-phone-alt mr-2"></i> (XX) XXXX-XXXX</p>
+<p class="mb-2"><i class="fas fa-map-marker-alt mr-2"></i> <span id="footerAddress">Rua Exemplo, 123 - Centro</span></p>
+<p><i class="fas fa-envelope mr-2"></i> contato@magnatashamburgueria.com</p>
+</div>
+</div>
+<div class="border-t border-gray-800 mt-8 pt-6 text-center">
+<p>© 2023 Magnatas Hamburgueria. Todos os direitos reservados.</p>
+</div>
+</div>
+</footer>
+<script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Variáveis globais
+            let userCity = '';
+            let userNeighborhood = '';
+            let firstOrder = true;
+            let cart = [];
+            
+            // Elementos do CEP
+            const cepModal = document.getElementById('cepModal');
+            const cepInput = document.getElementById('cepInput');
+            const checkCep = document.getElementById('checkCep');
+            const cepError = document.getElementById('cepError');
+            const cepSuccess = document.getElementById('cepSuccess');
+            const cepLoading = document.getElementById('cepLoading');
+            const closeCepModal = document.getElementById('closeCepModal');
+            
+            // Mostrar modal de CEP ao carregar a página
+            cepModal.classList.remove('hidden');
+            
+            // Validar CEP enquanto digita
+            cepInput.addEventListener('input', function() {
+                this.value = this.value.replace(/\D/g, '');
+                if (this.value.length === 8) {
+                    checkCep.disabled = false;
+                } else {
+                    checkCep.disabled = true;
+                }
+            });
+            
+            // Função para consultar CEP via API
+            async function consultarCEP(cep) {
+                try {
+                    cepLoading.style.display = 'block';
+                    cepError.classList.add('hidden');
+                    cepSuccess.classList.add('hidden');
+                    
+                    // Simulação de API - na prática você usaria a ViaCEP ou similar
+                    // Aqui estou simulando CEPs válidos para algumas cidades
+                    const cepsValidos = {
+                        '01001000': { cidade: 'São Paulo', bairro: 'Sé' },
+                        '20040000': { cidade: 'Rio de Janeiro', bairro: 'Centro' },
+                        '30130000': { cidade: 'Belo Horizonte', bairro: 'Savassi' },
+                        '80010000': { cidade: 'Curitiba', bairro: 'Centro' },
+                        '90010000': { cidade: 'Porto Alegre', bairro: 'Centro Histórico' }
+                    };
+                    
+                    // Simular delay de rede
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    if (cepsValidos[cep]) {
+                        return {
+                            success: true,
+                            data: cepsValidos[cep]
+                        };
+                    } else {
+                        // Se não estiver na lista, verifica pelo primeiro dígito
+                        const primeiroDigito = cep.charAt(0);
+                        const cidadesPorDigito = {
+                            '0': 'São Paulo',
+                            '1': 'São Paulo',
+                            '2': 'Rio de Janeiro',
+                            '3': 'Belo Horizonte',
+                            '4': 'Salvador',
+                            '5': 'Recife',
+                            '6': 'Brasília',
+                            '7': 'Brasília',
+                            '8': 'Curitiba',
+                            '9': 'Porto Alegre'
+                        };
+                        
+                        if (cidadesPorDigito[primeiroDigito]) {
+                            return {
+                                success: true,
+                                data: {
+                                    cidade: cidadesPorDigito[primeiroDigito],
+                                    bairro: 'Seu bairro'
+                                }
+                            };
+                        } else {
+                            return {
+                                success: false,
+                                message: 'CEP não atendido'
+                            };
+                        }
+                    }
+                } catch (error) {
+                    return {
+                        success: false,
+                        message: 'Erro ao consultar CEP'
+                    };
+                } finally {
+                    cepLoading.style.display = 'none';
+                }
+            }
+            
+            // Verificar CEP
+            checkCep.addEventListener('click', async function() {
+                const cep = cepInput.value;
+                
+                if (cep.length !== 8) {
+                    cepError.textContent = 'CEP deve conter 8 dígitos';
+                    cepError.classList.remove('hidden');
+                    return;
+                }
+                
+                const resultado = await consultarCEP(cep);
+                
+                if (resultado.success) {
+                    userCity = resultado.data.cidade;
+                    userNeighborhood = resultado.data.bairro;
+                    
+                    // Atualizar endereço no footer
+                    document.getElementById('footerAddress').textContent = `Rua Exemplo, 123 - ${userNeighborhood}, ${userCity}`;
+                    
+                    // Mostrar mensagem de sucesso
+                    cepSuccess.textContent = `Entregamos no ${userNeighborhood}, ${userCity}!`;
+                    cepSuccess.classList.remove('hidden');
+                    
+                    // Fechar modal após 2 segundos
+                    setTimeout(() => {
+                        cepModal.classList.add('hidden');
+                        
+                        // Mostrar mensagem de entrega disponível
+                        const deliveryMessage = document.getElementById('deliveryMessage');
+                        const deliveryMessageText = document.getElementById('deliveryMessageText');
+                        deliveryMessageText.textContent = `Entregamos em ${userCity}! Aproveite a entrega grátis no primeiro pedido.`;
+                        deliveryMessage.classList.remove('hidden');
+                        
+                        setTimeout(() => {
+                            deliveryMessage.classList.add('hidden');
+                        }, 5000);
+                    }, 2000);
+                } else {
+                    cepError.textContent = resultado.message || 'CEP não atendido';
+                    cepError.classList.remove('hidden');
+                }
+            });
+            
+            // Fechar modal de CEP
+            closeCepModal.addEventListener('click', function() {
+                cepModal.classList.add('hidden');
+            });
+            
+            // Elementos do carrinho
+            const cartButton = document.getElementById('cartButton');
+            const cartSidebar = document.getElementById('cartSidebar');
+            const cartItems = document.getElementById('cartItems');
+            const cartCount = document.getElementById('cartCount');
+            const cartSubtotal = document.getElementById('cartSubtotal');
+            const deliveryFeeElement = document.getElementById('deliveryFee');
+            const cartTotal = document.getElementById('cartTotal');
+            const checkoutButton = document.getElementById('checkoutButton');
+            const closeCart = document.getElementById('closeCart');
+            
+            // Elementos do checkout
+            const checkoutModal = document.getElementById('checkoutModal');
+            const closeCheckoutModal = document.getElementById('closeCheckoutModal');
+            const customerInfoForm = document.getElementById('customerInfoForm');
+            const pixPayment = document.getElementById('pixPayment');
+            const otherPayment = document.getElementById('otherPayment');
+            const orderConfirmation = document.getElementById('orderConfirmation');
+            const proceedToPayment = document.getElementById('proceedToPayment');
+            const backToInfo = document.getElementById('backToInfo');
+            const backToInfoOther = document.getElementById('backToInfoOther');
+            const confirmPayment = document.getElementById('confirmPayment');
+            const confirmOrder = document.getElementById('confirmOrder');
+            const closeOrderModal = document.getElementById('closeOrderModal');
+            const paymentMethod = document.getElementById('paymentMethod');
+            const paymentInstructions = document.getElementById('paymentInstructions');
+            
+            // Abrir/fechar carrinho
+            cartButton.addEventListener('click', function() {
+                cartSidebar.classList.remove('translate-x-full');
+                cartSidebar.classList.add('translate-x-0');
+            });
+            
+            closeCart.addEventListener('click', function() {
+                cartSidebar.classList.remove('translate-x-0');
+                cartSidebar.classList.add('translate-x-full');
+            });
+            
+            // Seletor de quantidade
+            document.querySelectorAll('.increment').forEach(button => {
+                button.addEventListener('click', function() {
+                    const quantityElement = this.parentNode.querySelector('.quantity');
+                    let quantity = parseInt(quantityElement.textContent);
+                    quantityElement.textContent = quantity + 1;
+                });
+            });
+            
+            document.querySelectorAll('.decrement').forEach(button => {
+                button.addEventListener('click', function() {
+                    const quantityElement = this.parentNode.querySelector('.quantity');
+                    let quantity = parseInt(quantityElement.textContent);
+                    if (quantity > 0) {
+                        quantityElement.textContent = quantity - 1;
+                    }
+                });
+            });
+            
+            // Adicionar ao carrinho
+            document.querySelectorAll('.add-to-cart').forEach(button => {
+                button.addEventListener('click', function() {
+                    if (!userCity) {
+                        alert('Por favor, informe seu CEP antes de adicionar itens ao carrinho');
+                        cepModal.classList.remove('hidden');
+                        return;
+                    }
+                    
+                    const quantityElement = this.parentNode.querySelector('.quantity');
+                    const quantity = parseInt(quantityElement.textContent);
+                    
+                    if (quantity <= 0) {
+                        alert('Por favor, selecione pelo menos 1 item');
+                        return;
+                    }
+                    
+                    const name = this.getAttribute('data-name');
+                    const price = parseFloat(this.getAttribute('data-price'));
+                    const description = this.getAttribute('data-description');
+                    
+                    // Verificar se item já está no carrinho
+                    const existingItemIndex = cart.findIndex(item => item.name === name);
+                    
+                    if (existingItemIndex !== -1) {
+                        cart[existingItemIndex].quantity += quantity;
+                    } else {
+                        cart.push({
+                            name,
+                            price,
+                            description,
+                            quantity
+                        });
+                    }
+                    
+                    // Resetar quantidade
+                    quantityElement.textContent = '0';
+                    
+                    // Atualizar carrinho
+                    updateCart();
+                    
+                    // Mostrar carrinho
+                    cartSidebar.classList.remove('translate-x-full');
+                    cartSidebar.classList.add('translate-x-0');
+                });
+            });
+            
+            // Atualizar carrinho - FUNÇÃO CORRIGIDA
+            function updateCart() {
+                // Contar itens
+                const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+                cartCount.textContent = totalItems;
+                
+                // Atualizar lista de itens
+                if (cart.length === 0) {
+                    cartItems.innerHTML = '<p class="text-gray-500 text-center py-8">Seu carrinho está vazio</p>';
+                    cartSubtotal.textContent = 'R$ 0,00';
+                    deliveryFeeElement.innerHTML = 'R$ 0,00 <span class="free-delivery-badge">GRÁTIS</span>';
+                    cartTotal.textContent = 'R$ 0,00';
+                    return;
+                } else {
+                    let itemsHTML = '';
+                    let subtotal = 0;
+                    
+                    cart.forEach((item, index) => {
+                        const itemTotal = item.price * item.quantity;
+                        subtotal += itemTotal;
+                        
+                        itemsHTML += `
+                            <div class="cart-item mb-4 pb-4 border-b border-gray-200">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <h4 class="font-bold">${item.name}</h4>
+                                        <p class="text-sm text-gray-500">${item.description}</p>
+                                    </div>
+                                    <button class="cart-item-remove text-red-500 hover:text-red-700" data-index="${index}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                                <div class="flex justify-between items-center mt-2">
+                                    <div class="quantity-selector">
+                                        <button class="quantity-btn bg-gray-200 hover:bg-gray-300 mr-2 cart-decrement" data-index="${index}">-</button>
+                                        <span class="quantity mx-2">${item.quantity}</span>
+                                        <button class="quantity-btn bg-gray-200 hover:bg-gray-300 ml-2 cart-increment" data-index="${index}">+</button>
+                                    </div>
+                                    <span class="font-bold">R$ ${itemTotal.toFixed(2).replace('.', ',')}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    cartItems.innerHTML = itemsHTML;
+                    
+                    // Adicionar eventos aos botões
+                    document.querySelectorAll('.cart-item-remove').forEach(button => {
+                        button.addEventListener('click', function() {
+                            const index = parseInt(this.getAttribute('data-index'));
+                            cart.splice(index, 1);
+                            updateCart();
+                        });
+                    });
+                    
+                    document.querySelectorAll('.cart-decrement').forEach(button => {
+                        button.addEventListener('click', function() {
+                            const index = parseInt(this.getAttribute('data-index'));
+                            if (cart[index].quantity > 1) {
+                                cart[index].quantity -= 1;
+                                updateCart();
+                            } else {
+                                cart.splice(index, 1);
+                                updateCart();
+                            }
+                        });
+                    });
+                    
+                    document.querySelectorAll('.cart-increment').forEach(button => {
+                        button.addEventListener('click', function() {
+                            const index = parseInt(this.getAttribute('data-index'));
+                            cart[index].quantity += 1;
+                            updateCart();
+                        });
+                    });
+                }
+                
+                // Calcular totais - CORREÇÃO PRINCIPAL AQUI
+                const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const deliveryFee = firstOrder ? 0 : 5.00;
+                const total = subtotal + deliveryFee;
+                
+                cartSubtotal.textContent = `R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+                deliveryFeeElement.innerHTML = firstOrder 
+                    ? `R$ ${deliveryFee.toFixed(2).replace('.', ',')} <span class="free-delivery-badge">GRÁTIS</span>`
+                    : `R$ ${deliveryFee.toFixed(2).replace('.', ',')}`;
+                cartTotal.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+            }
+            
+            // Finalizar pedido
+            checkoutButton.addEventListener('click', function() {
+                if (cart.length === 0) {
+                    alert('Seu carrinho está vazio');
+                    return;
+                }
+                
+                if (!userCity) {
+                    alert('Por favor, informe seu CEP antes de finalizar o pedido');
+                    cepModal.classList.remove('hidden');
+                    return;
+                }
+                
+                // Mostrar modal de checkout
+                checkoutModal.classList.remove('hidden');
+                customerInfoForm.classList.remove('hidden');
+                pixPayment.classList.add('hidden');
+                otherPayment.classList.add('hidden');
+                orderConfirmation.classList.add('hidden');
+                
+                // Preencher endereço automaticamente
+                if (userCity && userNeighborhood) {
+                    document.getElementById('address').value = `${userNeighborhood}, ${userCity}`;
+                }
+            });
+            
+            // Fechar modal de checkout
+            closeCheckoutModal.addEventListener('click', function() {
+                checkoutModal.classList.add('hidden');
+            });
+            
+            // Fechar modal de confirmação
+            closeOrderModal.addEventListener('click', function() {
+                checkoutModal.classList.add('hidden');
+            });
+            
+            // Continuar para pagamento
+            proceedToPayment.addEventListener('click', function() {
+                const name = document.getElementById('name').value;
+                const phone = document.getElementById('phone').value;
+                const address = document.getElementById('address').value;
+                
+                if (!name || !phone || !address) {
+                    alert('Por favor, preencha todos os campos obrigatórios');
+                    return;
+                }
+                
+                const method = paymentMethod.value;
+                
+                if (method === 'pix') {
+                    customerInfoForm.classList.add('hidden');
+                    pixPayment.classList.remove('hidden');
+                } else {
+                    customerInfoForm.classList.add('hidden');
+                    otherPayment.classList.remove('hidden');
+                    
+                    if (method === 'cash') {
+                        paymentInstructions.textContent = 'Você pagará em dinheiro quando receber seu pedido. Por favor, tenha o valor exato ou próximo para facilitar o troco.';
+                    } else if (method === 'card') {
+                        paymentInstructions.textContent = 'Você pagará com cartão quando receber seu pedido. Por favor, tenha seu cartão e documento de identificação à mão.';
+                    }
+                }
+            });
+            
+            // Voltar para informações
+            backToInfo.addEventListener('click', function() {
+                pixPayment.classList.add('hidden');
+                customerInfoForm.classList.remove('hidden');
+            });
+            
+            backToInfoOther.addEventListener('click', function() {
+                otherPayment.classList.add('hidden');
+                customerInfoForm.classList.remove('hidden');
+            });
+            
+            // Confirmar pagamento PIX
+            confirmPayment.addEventListener('click', function() {
+                pixPayment.classList.add('hidden');
+                orderConfirmation.classList.remove('hidden');
+                
+                // Limpar carrinho
+                cart = [];
+                updateCart();
+                firstOrder = false;
+            });
+            
+            // Confirmar pedido (dinheiro/cartão)
+            confirmOrder.addEventListener('click', function() {
+                otherPayment.classList.add('hidden');
+                orderConfirmation.classList.remove('hidden');
+                
+                // Limpar carrinho
+                cart = [];
+                updateCart();
+                firstOrder = false;
+            });
+            
+            // Copiar código PIX
+            window.copyPixCode = function() {
+                const pixCode = document.querySelector('.pix-code p').textContent;
+                navigator.clipboard.writeText(pixCode)
+                    .then(() => {
+                        alert('Código PIX copiado com sucesso!');
+                    })
+                    .catch(err => {
+                        console.error('Erro ao copiar código PIX:', err);
+                        alert('Não foi possível copiar o código. Tente novamente.');
+                    });
+            };
+            
+            // Fechar modais ao clicar fora
+            window.addEventListener('click', function(event) {
+                if (event.target === cepModal) {
+                    cepModal.classList.add('hidden');
+                }
+                if (event.target === checkoutModal) {
+                    checkoutModal.classList.add('hidden');
+                }
+                if (event.target === cartSidebar) {
+                    cartSidebar.classList.remove('translate-x-0');
+                    cartSidebar.classList.add('translate-x-full');
+                }
+            });
+            
+            // Fechar com ESC
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    cepModal.classList.add('hidden');
+                    checkoutModal.classList.add('hidden');
+                    cartSidebar.classList.remove('translate-x-0');
+                    cartSidebar.classList.add('translate-x-full');
+                }
+            });
+            
+            // Inicializar carrinho
+            updateCart();
+        });
+    </script>
+<script></script><script>
+document.getElementById('proceedToPayment').addEventListener('click', async function () {
+    const nome = document.getElementById('name').value;
+    const telefone = document.getElementById('phone').value;
+    const endereco = document.getElementById('address').value;
+    const metodo = document.getElementById('paymentMethod').value;
+
+    if (!nome || !telefone || !endereco) {
+        alert("Preencha todos os dados.");
+        return;
+    }
+
+    if (metodo === 'pix') {
+        document.getElementById('customerInfoForm').classList.add('hidden');
+        document.getElementById('pixPayment').classList.remove('hidden');
+
+        const valorTexto = document.getElementById('cartTotal').textContent.replace(/[R$\s]/g, '').replace(',', '.');
+        const valor = parseFloat(valorTexto);
+
+        try {
+            const response = await fetch('http://localhost:3000/criar-pagamento', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ valor: valor, nome: nome })
+            });
+
+            const data = await response.json();
+            if (data.qr_code_base64) {
+                document.getElementById('qrCodeMP').src = 'data:image/png;base64,' + data.qr_code_base64;
+                document.getElementById('qrCodeMP').style.display = 'block';
+                document.getElementById('pixCode').innerText = data.qr_code;
+            } else {
+                alert("Erro ao gerar QR Code");
+            }
+        } catch (error) {
+            console.error("Erro:", error);
+            alert("Erro ao conectar com servidor de pagamento.");
+        }
+    } else {
+        document.getElementById('customerInfoForm').classList.add('hidden');
+        document.getElementById('otherPayment').classList.remove('hidden');
+    }
+});
+
+document.getElementById('confirmPayment').addEventListener('click', function () {
+    const nome = document.getElementById('name').value || 'Cliente';
+    const telefone = document.getElementById('phone').value || '';
+    const endereco = document.getElementById('address').value || '';
+    const valorTexto = document.getElementById('cartTotal').textContent.trim();
+
+    const msg = `Olá, acabei de pagar via PIX.\n\nNome: ${nome}\nTelefone: ${telefone}\nEndereço: ${endereco}\nValor: ${valorTexto}`;
+    const whatsappURL = `https://wa.me/55${telefone.replace(/\D/g, '')}?text=` + encodeURIComponent(msg);
+    window.open(whatsappURL, '_blank');
+});
+</script></body>
+</html>
