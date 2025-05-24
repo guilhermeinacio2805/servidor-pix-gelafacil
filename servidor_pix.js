@@ -19,11 +19,11 @@ app.post('/pix', async (req, res) => {
       description: descricao || 'Pagamento via QR Code PIX',
       payment_method_id: 'pix',
       payer: {
-        email: 'comprador@email.com',
+        email: 'guilhermeinacio_sp@hotmail.com',
         first_name: nome || 'Cliente',
         identification: {
           type: 'CPF',
-          number: cpf || '12345678909'
+          number: cpf || '31592231837'
         }
       }
     }
